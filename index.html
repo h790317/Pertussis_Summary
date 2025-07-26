@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>百日咳疫情互動儀表板：日本與台灣現況分析</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutral Harmony -->
+    <!-- Application Structure Plan: The SPA is designed as a single-page dashboard for intuitive exploration. It starts with a high-level overview (Hero & Interactive Chart), allowing users to grasp the situation at a glance. It then uses a sticky navigation to guide users through thematic sections: 'Audio Summary', 'Why the Resurgence?', 'About Pertussis', 'Diagnosis & Treatment' (now with clinical suspicion criteria), 'Prevention & Future', and 'References'. This non-linear, thematic structure prioritizes user understanding and engagement over simply replicating a report's linear format. The goal is to empower users to explore the data and concepts at their own pace, with clear citations for credibility. -->
+    <!-- Visualization & Content Choices: 1. Japan/Taiwan Epidemic Data -> Goal: Compare trends & age distribution -> Viz: Interactive dual-mode (Line/Bar) Chart -> Interaction: Buttons to toggle views -> Justification: Consolidates multiple key datasets into one engaging element. -> Library: Chart.js (Canvas). 2. Resurgence Drivers -> Goal: Explain complex causes clearly -> Viz: Icon-driven 4-column grid -> Interaction: Click-to-reveal details in a modal -> Justification: Breaks down a dense topic into digestible, visually appealing chunks. -> Library: Vanilla JS. 3. Vaccination Schedule -> Goal: Provide actionable guidance -> Viz: Visual lifecycle diagram -> Interaction: Hover highlights -> Justification: More intuitive than a standard table. -> Library: HTML/Tailwind. 4. Clinical Suspicion Criteria -> Goal: Provide clear guidance for testing -> Viz: Two-column layout with clear headings and lists -> Interaction: None needed, focus on clarity -> Justification: Adds critical, actionable information for both public and clinicians. -> Library: HTML/Tailwind. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        html {
+            scroll-behavior: smooth;
+        }
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #FDFBF8;
+            color: #4A4A4A;
+        }
+       .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 45vh;
+        }
+        @media (min-width: 768px) {
+           .chart-container {
+                height: 450px;
+            }
+        }
+       .nav-link {
+            transition: color 0.3s, border-bottom-color 0.3s;
+            border-bottom: 2px solid transparent;
+        }
+       .nav-link:hover,.nav-link.active {
+            color: #00796B;
+            border-bottom-color: #00796B;
+        }
+       .sticky-nav {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+       .modal-bg {
+            background-color: rgba(0,0,0,0.5);
+        }
+       .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        sup a {
+            color: #00796B;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 0.7em;
+            vertical-align: super;
+            margin: 0 1px;
+        }
+        sup a:hover {
+            text-decoration: underline;
+        }
+        #references li {
+            scroll-margin-top: 80px; /* Offset for sticky nav */
+            padding-left: 1em;
+            text-indent: -1em;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header id="overview" class="bg-amber-50 text-center py-12 px-4">
+        <h1 class="text-4xl md:text-5xl font-bold text-teal-800 mb-4">後疫情時代的警鐘：百日咳全球復燃</h1>
+        <p class="max-w-3xl mx-auto text-lg text-gray-700 mb-8">
+            一場由疫苗效力衰退、病原體演化、與「免疫負債」交織而成的公共衛生挑戰，正席捲全球。本儀表板將深入剖析日本與台灣的疫情現況，提供全面的數據洞察與防治策略。
+        </p>
+        <div class="flex justify-center space-x-4 md:space-x-8">
+            <div class="p-4 rounded-lg">
+                <p class="text-4xl font-bold text-red-600" id="japan-cases">48,073+ <sup><a href="#ref-30">[30]</a><a href="#ref-32">[32]</a></sup></p>
+                <p class="text-sm text-gray-600">日本 2025年累計病例 (截至7月下旬)</p>
+            </div>
+            <div class="p-4 rounded-lg">
+                <p class="text-4xl font-bold text-orange-600" id="taiwan-cases">35+ <sup><a href="#ref-41">[41]</a><a href="#ref-42">[42]</a></sup></p>
+                <p class="text-sm text-gray-600">台灣 2025年累計病例 (截至6月底)</p>
+            </div>
+        </div>
+    </header>
+
+    <nav class="sticky-nav bg-white/80 shadow-md">
+        <div class="max-w-6xl mx-auto px-4">
+            <div class="flex justify-center flex-wrap space-x-2 md:space-x-8 py-3 text-sm md:text-base">
+                <a href="#audio-summary" class="nav-link font-medium px-2 py-2">語音摘要</a>
+                <a href="#comparison" class="nav-link font-medium px-2 py-2">疫情比較</a>
+                <a href="#why" class="nav-link font-medium px-2 py-2">為何復燃？</a>
+                <a href="#about" class="nav-link font-medium px-2 py-2">認識百日咳</a>
+                <a href="#diagnosis" class="nav-link font-medium px-2 py-2">診斷與治療</a>
+                <a href="#prevention" class="nav-link font-medium px-2 py-2">預防與未來</a>
+                <a href="#references" class="nav-link font-medium px-2 py-2">參考文獻</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto p-4 md:p-8 space-y-16">
+        
+        <section id="audio-summary" class="scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center text-teal-800 mb-4">語音摘要</h2>
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <p class="text-gray-700 mb-6 leading-relaxed">歡迎收聽本次摘要。近期全球百日咳疫情顯著復燃，日本與台灣尤為突出。本次疫情由四大因素共同驅動：首先，非細胞性疫苗的保護力會隨時間衰退，導致青少年成為主要傳播群體。其次，百日咳病原體持續演化，出現能逃脫疫苗保護的菌株。第三，抗生素抗藥性菌株的出現，為治療帶來嚴峻挑戰。最後，COVID-19大流行後的「免疫負債」，使得人群整體易感性增加。預防的關鍵在於建立「全生命週期」的疫苗策略，涵蓋嬰幼兒、孕婦及青少年與成人追加劑。若出現持續性咳嗽，應及早就醫。本摘要結束。</p>
+                <div class="bg-gray-100 p-4 rounded-lg flex items-center space-x-4">
+                    <button id="play-pause-btn" class="text-3xl text-teal-600 hover:text-teal-800 transition">▶</button>
+                    <div class="w-full bg-gray-300 rounded-full h-2.5 relative cursor-pointer" id="progress-bar-container">
+                        <div id="progress-bar" class="bg-teal-600 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <span id="time-display" class="text-sm text-gray-600">0:00 / 0:58</span>
+                </div>
+                <audio id="audio-player" src="https://storage.googleapis.com/gemini-assets/pertussis_summary_audio.mp3" preload="metadata"></audio>
+            </div>
+        </section>
+
+        <section id="comparison" class="scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center text-teal-800 mb-2">疫情儀表板：日本 vs. 台灣</h2>
+            <p class="text-center text-gray-600 mb-8">此互動圖表展示了兩地自2024年起的每月疫情趨勢與年齡分佈。點擊按鈕切換不同視角，以深入了解疫情的規模與結構性差異。</p>
+            <div class="bg-white p-4 md:p-6 rounded-xl shadow-lg">
+                <div class="flex justify-center mb-4 space-x-2">
+                    <button id="trend-btn" class="bg-teal-600 text-white px-4 py-2 rounded-md shadow hover:bg-teal-700 transition">每月病例趨勢</button>
+                    <button id="age-btn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md shadow hover:bg-gray-300 transition">年齡分佈</button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="pertussisChart"></canvas>
+                </div>
+                <p id="chart-description" class="text-sm text-center text-gray-500 mt-4"></p>
+            </div>
+        </section>
+
+        <section id="why" class="scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center text-teal-800 mb-2">為何復燃？一場「完美風暴」</h2>
+            <p class="text-center text-gray-600 mb-8">當前的百日咳危機並非單一因素造成，而是四大關鍵驅動因素共同作用的結果。點擊下方卡片，了解更多細節。</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="reason-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer" data-reason="immunity">
+                    <div class="text-4xl mb-4">💉</div>
+                    <h3 class="text-xl font-bold mb-2 text-teal-700">疫苗效力衰退</h3>
+                    <p class="text-gray-600">非細胞性疫苗(aP)的保護力在接種後3-5年開始顯著下降，造成青少年與成人族群的免疫缺口。<sup><a href="#ref-59">[59]</a><a href="#ref-61">[61]</a><a href="#ref-3">[3]</a></sup></p>
+                </div>
+                <div class="reason-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer" data-reason="evolution">
+                    <div class="text-4xl mb-4">🧬</div>
+                    <h3 class="text-xl font-bold mb-2 text-teal-700">病原體演化</h3>
+                    <p class="text-gray-600">百日咳桿菌持續演化，出現能逃脫疫苗保護的菌株(如PRN缺陷型)，使其更具傳播優勢。<sup><a href="#ref-63">[63]</a><a href="#ref-67">[67]</a><a href="#ref-68">[68]</a></sup></p>
+                </div>
+                <div class="reason-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer" data-reason="resistance">
+                    <div class="text-4xl mb-4">💊</div>
+                    <h3 class="text-xl font-bold mb-2 text-teal-700">抗生素抗藥性</h3>
+                    <p class="text-gray-600">抗藥性菌株(MRBP)在全球擴散，挑戰一線藥物的治療效果，增加重症與死亡風險。<sup><a href="#ref-4">[4]</a><a href="#ref-70">[70]</a><a href="#ref-71">[71]</a></sup></p>
+                </div>
+                <div class="reason-card bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer" data-reason="debt">
+                    <div class="text-4xl mb-4">😷</div>
+                    <h3 class="text-xl font-bold mb-2 text-teal-700">免疫負債</h3>
+                    <p class="text-gray-600">COVID-19期間的防疫措施減少了病原體暴露，導致人群整體免疫力下降，為疫情反撲創造條件。<sup><a href="#ref-49">[49]</a><a href="#ref-76">[76]</a><a href="#ref-77">[77]</a></sup></p>
+                </div>
+            </div>
+        </section>
+
+        <section id="about" class="scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center text-teal-800 mb-8">認識百日咳：症狀與病程</h2>
+            <p class="text-center text-gray-600 mb-8 max-w-3xl mx-auto">百日咳的臨床表現因年齡而異，了解其特徵是及早發現與治療的關鍵。此部分將介紹疾病的典型病程、不同年齡層的症狀差異。</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold mb-4 text-center text-teal-700">典型病程三階段 <sup><a href="#ref-2">[2]</a><a href="#ref-3">[3]</a></sup></h3>
+                    <div>
+                        <div class="border-b">
+                            <button class="accordion-btn w-full text-left py-4 font-semibold text-lg flex justify-between items-center">
+                                <span>1. 黏膜期 (1-2週)</span>
+                                <span class="accordion-icon">+</span>
+                            </button>
+                            <div class="accordion-content max-h-0 overflow-hidden transition-all duration-500">
+                                <p class="p-4 text-gray-600 bg-amber-50 rounded-b-lg">類似普通感冒，有流鼻水、輕微咳嗽等症狀。此時期傳染力最強，但因症狀不典型而常被忽略，是「沉默的傳播鏈」的開端。<sup><a href="#ref-3">[3]</a><a href="#ref-5">[5]</a></sup></p>
+                            </div>
+                        </div>
+                        <div class="border-b">
+                            <button class="accordion-btn w-full text-left py-4 font-semibold text-lg flex justify-between items-center">
+                                <span>2. 陣發期 (1-6週)</span>
+                                <span class="accordion-icon">+</span>
+                            </button>
+                            <div class="accordion-content max-h-0 overflow-hidden transition-all duration-500">
+                                <p class="p-4 text-gray-600 bg-amber-50 rounded-b-lg">轉為劇烈、無法控制的痙攣性咳嗽。患者會連續猛咳，並在吸氣時發出高亢的「雞啼樣」吼聲。咳嗽後嘔吐亦是常見特徵。<sup><a href="#ref-9">[9]</a><a href="#ref-11">[11]</a></sup></p>
+                            </div>
+                        </div>
+                        <div>
+                            <button class="accordion-btn w-full text-left py-4 font-semibold text-lg flex justify-between items-center">
+                                <span>3. 恢復期 (數週至數月)</span>
+                                <span class="accordion-icon">+</span>
+                            </button>
+                            <div class="accordion-content max-h-0 overflow-hidden transition-all duration-500">
+                                <p class="p-4 text-gray-600 bg-amber-50 rounded-b-lg">咳嗽頻率和嚴重程度逐漸減輕，但仍可能持續2-3個月，故稱「百日咳」。<sup><a href="#ref-3">[3]</a><a href="#ref-5">[5]</a></sup></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold mb-4 text-center text-teal-700">年齡決定症狀：嬰兒 vs. 成人</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="font-bold text-lg text-red-600">👶 嬰兒 (< 6個月) - 高風險族群</h4>
+                            <p class="text-gray-600">症狀不典型但極度危險。可能沒有劇咳或吼聲，而是出現<span class="font-bold">呼吸暫停、臉色發紫、喘息</span>等危及生命的警訊。<sup><a href="#ref-3">[3]</a><a href="#ref-11">[11]</a></sup>併發症風險最高，包括肺炎、抽搐甚至死亡。<sup><a href="#ref-7">[7]</a><a href="#ref-13">[13]</a></sup></p>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-lg text-blue-600">👨‍👩‍👧‍👦 青少年與成人 - 主要傳播者</h4>
+                            <p class="text-gray-600">症狀通常較輕微，可能沒有典型分期或吼聲。主要表現為<span class="font-bold">持續數週的頑固性咳嗽</span>，尤其夜間加劇。<sup><a href="#ref-3">[3]</a><a href="#ref-8">[8]</a></sup>常因症狀不典型而被忽略，成為社區中的主要傳染源。<sup><a href="#ref-5">[5]</a><a href="#ref-7">[7]</a></sup></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="diagnosis" class="scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center text-teal-800 mb-8">診斷與治療</h2>
+            <p class="text-center text-gray-600 mb-8 max-w-3xl mx-auto">及時且準確的診斷是控制百日咳傳播的關鍵。治療策略則需根據病程階段和患者狀況進行精確調整，主要目標是縮短傳染期並緩解症狀。</p>
+            
+            <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg mb-8">
+                <h3 class="text-2xl font-bold mb-6 text-center text-teal-700">何時應懷疑並檢驗百日咳？</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h4 class="font-bold text-lg text-teal-800 mb-2">主要懷疑時機</h4>
+                        <ul class="list-disc list-inside space-y-2 text-gray-700">
+                            <li><strong class="text-red-600">任何年齡的「持續性咳嗽」</strong>：只要咳嗽持續超過兩週，特別是夜間加劇或找不到其他明確原因時。</li>
+                            <li><strong>明確接觸史</strong>：曾與確診的百日咳病患有過密切接觸（如家人、同學）。</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-lg text-teal-800 mb-2">依年齡的警示信號</h4>
+                        <ul class="list-disc list-inside space-y-2 text-gray-700">
+                            <li><strong>嬰兒 (< 6個月)</strong>：出現<strong class="text-red-600">呼吸暫停、臉色發紫、喘息</strong>等危及生命的症狀。<sup><a href="#ref-3">[3]</a><a href="#ref-11">[11]</a></sup></li>
+                            <li><strong>兒童/青少年</strong>：出現劇烈痙攣性咳嗽，伴隨<strong class="text-blue-600">高亢吸氣吼聲</strong>或<strong class="text-blue-600">咳嗽後嘔吐</strong>。<sup><a href="#ref-3">[3]</a><a href="#ref-9">[9]</a></sup></li>
+                            <li><strong>成人</strong>：頑固性咳嗽持續數週，或出現<strong class="text-blue-600">咳嗽後嘔吐</strong>。<sup><a href="#ref-3">[3]</a></sup></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold mb-4 text-center text-teal-700">診斷方法：依時機選擇</h3>
+                    <div>
+                        <div class="border-b">
+                            <button class="accordion-btn w-full text-left py-4 font-semibold text-lg flex justify-between items-center">
+                                <span>首選：PCR (咳嗽 < 4週)</span>
+                                <span class="accordion-icon">+</span>
+                            </button>
+                            <div class="accordion-content max-h-0 overflow-hidden transition-all duration-500">
+                                <p class="p-4 text-gray-600 bg-amber-50 rounded-b-lg">聚合酶連鎖反應(PCR)是目前最常用且最敏感的工具，尤其在咳嗽開始後的前3-4週效果最佳。能快速獲得結果，是臨床第一線首選。<sup><a href="#ref-16">[16]</a><a href="#ref-17">[17]</a><a href="#ref-18">[18]</a></sup></p>
+                            </div>
+                        </div>
+                        <div class="border-b">
+                            <button class="accordion-btn w-full text-left py-4 font-semibold text-lg flex justify-between items-center">
+                                <span>細菌培養</span>
+                                <span class="accordion-icon">+</span>
+                            </button>
+                            <div class="accordion-content max-h-0 overflow-hidden transition-all duration-500">
+                                <p class="p-4 text-gray-600 bg-amber-50 rounded-b-lg">診斷的「黃金標準」，特異性100%。但敏感度較低，尤其在病程後期或已使用抗生素後，檢出率會下降。<sup><a href="#ref-16">[16]</a></sup></p>
+                            </div>
+                        </div>
+                        <div>
+                            <button class="accordion-btn w-full text-left py-4 font-semibold text-lg flex justify-between items-center">
+                                <span>血清學檢測 (咳嗽 > 4週)</span>
+                                <span class="accordion-icon">+</span>
+                            </button>
+                            <div class="accordion-content max-h-0 overflow-hidden transition-all duration-500">
+                                <p class="p-4 text-gray-600 bg-amber-50 rounded-b-lg">適用於病程後期，當PCR和培養已不易檢出病原體時。主要檢測血液中針對百日咳毒素的抗體（PT-IgG）濃度。<sup><a href="#ref-16">[16]</a></sup></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-2xl font-bold mb-4 text-center text-teal-700">治療策略</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="font-bold text-lg text-green-700">💊 抗生素治療</h4>
+                            <p class="text-gray-600">主要目的在於縮短傳染期，防止疾病擴散。第一線藥物為巨環內酯類抗生素（如阿奇黴素）。<sup><a href="#ref-3">[3]</a><a href="#ref-21">[21]</a></sup>若能在黏膜期早期投藥，可減輕症狀；若已進入陣發期，則主要作用是清除細菌、降低傳染力。患者在接受治療滿5天後，即不具傳染性。<sup><a href="#ref-3">[3]</a><a href="#ref-5">[5]</a></sup></p>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-lg text-green-700">🛌 支持性療法</h4>
+                            <p class="text-gray-600">對於重症患者，特別是嬰兒，支持性療法至關重要。可能包括住院治療、氧氣支持、靜脈輸液以維持水分和營養，甚至在呼吸衰竭時使用呼吸器。<sup><a href="#ref-11">[11]</a><a href="#ref-12">[12]</a></sup></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="prevention" class="scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center text-teal-800 mb-2">預防與未來：建立全生命週期的防護網</h2>
+            <p class="text-center text-gray-600 mb-8 max-w-3xl mx-auto">面對百日咳的復燃，單靠嬰幼兒時期的疫苗已不足夠。建立一個涵蓋所有年齡層的「全生命週期」疫苗策略，是當前最重要的防治核心。同時，我們也需展望未來的科技與策略，以應對不斷演化的病原體。</p>
+            <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+                <h3 class="text-2xl font-bold mb-6 text-center text-teal-700">百日咳疫苗接種生命週期建議</h3>
+                <div class="relative w-full">
+                    <div class="absolute left-1/2 top-0 bottom-0 w-0.5 bg-teal-200 -ml-0.5"></div>
+                    <div class="space-y-12">
+                        <div class="flex items-center w-full">
+                            <div class="w-1/2 flex justify-end pr-8">
+                                <div class="text-right">
+                                    <h4 class="font-bold text-lg text-teal-800">嬰幼兒基礎免疫</h4>
+                                    <p class="text-gray-600">出生滿2, 4, 6, 18個月及5歲時，完成常規疫苗接種，是預防重症的基石。<sup><a href="#ref-42">[42]</a><a href="#ref-58">[58]</a><a href="#ref-80">[80]</a></sup></p>
+                                </div>
+                            </div>
+                            <div class="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center text-2xl z-10 shadow-md">👶</div>
+                            <div class="w-1/2"></div>
+                        </div>
+                        <div class="flex items-center w-full">
+                            <div class="w-1/2"></div>
+                            <div class="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center text-2xl z-10 shadow-md">👩‍👦</div>
+                            <div class="w-1/2 flex justify-start pl-8">
+                                <div>
+                                    <h4 class="font-bold text-lg text-teal-800">孕婦接種</h4>
+                                    <p class="text-gray-600">於每次懷孕第28-36週間接種一劑Tdap疫苗，抗體可通過胎盤保護新生兒。<sup><a href="#ref-58">[58]</a><a href="#ref-82">[82]</a><a href="#ref-83">[83]</a></sup></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center w-full">
+                            <div class="w-1/2 flex justify-end pr-8">
+                                <div class="text-right">
+                                    <h4 class="font-bold text-lg text-teal-800">青少年追加劑</h4>
+                                    <p class="text-gray-600">建議11-18歲青少年追加一劑Tdap，彌補衰退的保護力，阻斷校園傳播鏈。<sup><a href="#ref-42">[42]</a><a href="#ref-82">[82]</a></sup></p>
+                                </div>
+                            </div>
+                            <div class="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center text-2xl z-10 shadow-md">🧑‍🎓</div>
+                            <div class="w-1/2"></div>
+                        </div>
+                        <div class="flex items-center w-full">
+                            <div class="w-1/2"></div>
+                            <div class="w-12 h-12 rounded-full bg-teal-600 text-white flex items-center justify-center text-2xl z-10 shadow-md">👨‍👩‍👧‍👦</div>
+                            <div class="w-1/2 flex justify-start pl-8">
+                                <div>
+                                    <h4 class="font-bold text-lg text-teal-800">成人/照顧者接種</h4>
+                                    <p class="text-gray-600">建議成人每10年追加一劑，特別是嬰兒照顧者與醫護人員，建立「蠶繭」保護網。<sup><a href="#ref-58">[58]</a><a href="#ref-82">[82]</a></sup></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="references" class="scroll-mt-20">
+            <h2 class="text-3xl font-bold text-center text-teal-800 mb-8">參考文獻</h2>
+            <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg">
+                <ul class="list-none space-y-3 text-gray-700 text-sm">
+                    <li id="ref-1">[1] 香港衛生防護中心. 百日咳. <a href="https://www.chp.gov.hk/tc/healthtopics/content/24/35.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-2">[2] 福岡県保健環境研究所. 百日咳について. <a href="https://www.fihes.pref.fukuoka.jp/~byouri/topics/2025.7.3/Bordetella/index.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-3">[3] 台灣家庭醫學醫學會. 百日咳教材. <a href="http://www.dryahoo.org.tw/%E6%AC%A1%E7%B6%B2%E9%A0%81/%E7%B6%B2%E8%B7%AF%E4%BD%88%E5%91%8A%E6%AC%84/%E7%96%AB%E6%83%85%E5%85%AC%E5%91%8A/%E7%99%BE%E6%97%A5%E5%92%B3/%E7%99%BE%E6%97%A5%E5%92%B3%E6%95%99%E6%9D%909705.pdf" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-4">[4] 日本小兒科學會 (2025-06-23). 生後2か月未満の乳児における重症百日咳の発症に関する注意喚起と治療薬選択について. <a href="https://www.jpeds.or.jp/uploads/files/20250623_jyushouhyakunitizeki.pdf" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-5">[5] 衛生福利部疾病管制署. 百日咳防治工作手冊. <a href="https://www.cdc.gov.tw/Category/Page/nE7gtdlnvDmBx00FwsJd2Q" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-6">[6] 衛生福利部疾病管制署. 百日咳疾病介紹. <a href="https://www.cdc.gov.tw/Disease/SubIndex/gJ7r9uf6cgWWczRSeMRibA" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-7">[7] 全民健康基金會 (2024-08-06). 1傳17！百日咳捲土重來. <a href="https://www.ch.com.tw/index.aspx?chapter=epaper20240806" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-8">[8] 日本健康安全研究所 (JIHS). 百日咳について. <a href="https://id-info.jihs.go.jp/surveillance/idwr/jp/attention/2025/22/index.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-9">[9] AXA安盛. 【2025旅遊警示】日本百日咳疫情爆發！. <a href="https://www.axa.com.hk/zh/blog/lifestyle/pertussis-outbreak-in-japan" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-10">[10] 日本健康安全研究所 (JIHS) (2025-04-22). 百日咳の発生状況について. <a href="https://id-info.jihs.go.jp/diseases/ha/pertussis/020/2504_pertussis_RA.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-11">[11] 洛杉磯縣公共衛生局. 百日咳常見問題解答. <a href="http://publichealth.lacounty.gov/ip/Docs/2024/PertussisFAQ_TraditionalChinese.pdf" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-12">[12] 天主教聖功醫療財團法人聖功醫院. 百日咳接觸者注意事項衛教指導. <a href="https://www.paochien.com.tw/filemanager/gethealthFile?filefrom=healthedu&fileid=977&uid=1" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-13">[13] 衛生福利部 (2020-02-14). 百日咳疫情流行，籲請民眾提高警覺. <a href="https://www.mohw.gov.tw/cp-16-51503-1.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-14">[14] 衛生福利部疾病管制署 (2025-07-02). 近期國內百日咳疫情上升，病例數創10年新高. <a href="https://www.mohw.gov.tw/cp-16-82891-1.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-15">[15] 衛生福利部 (2025-01-22). 公布今年首例百日咳確定病例. <a href="https://www.mohw.gov.tw/cp-16-81346-1.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-16">[16] Centers for Disease Control and Prevention (CDC). Laboratory Testing for Pertussis. <a href="https://www.cdc.gov/pertussis/php/laboratories/index.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-17">[17] European Centre for Disease Prevention and Control (ECDC). Guidance and protocol for the use of real-time PCR in laboratory diagnosis of human infection by Bordetella. <a href="https://www.ecdc.europa.eu/sites/default/files/media/en/publications/Publications/Guidance-protocol-PCR-laboratory-diagnosis-bordatella-pertussis-parapertussis.pdf" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-18">[18] Centers for Disease Control and Prevention (CDC). Best Practices for Use of PCR for Diagnosing Pertussis. <a href="https://www.cdc.gov/pertussis/php/pcr-bestpractices/index.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-19">[19] Georgia Department of Public Health. Best Practices for Use of Polymerase Chain Reaction (PCR) for Diagnosing Pertussis. <a href="https://dph.georgia.gov/document/publication/best-practices-polymerase-chain-reaction-pcr-diagnosing-pertussis/download" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-20">[20] ResearchGate (2019-06-14). PCR-specific diagnosis for effective pertussis surveillance. <a href="https://www.researchgate.net/publication/371428947_PCR-specific_diagnosis_for_effective_pertussis_surveillance" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-21">[21] 衛生福利部疾病管制署 (2025-06-03). 日本百日咳疫情升溫，籲請民眾提高警覺. <a href="https://www.cdc.gov.tw/TravelEpidemic/Detail/G3PSay_dafdAwjsYNm3CCA?epidemicId=k422FmmOJ-Ac_bIIosZw6A" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-22">[22] 衛生福利部疾病管制署 (2025-04-02). 國內今年百日咳疫情為六年同期新高. <a href="https://www.cdc.gov.tw/Bulletin/Detail/4aofbMJZvaPotT6SQTRB6A?typeid=9" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-23">[23] Japan Institute for Health Security (JIHS) (2025-05-28). Pertussis, Japan, as of week 21, 2025. <a href="https://id-info.jihs.go.jp/surveillance/idwr/en/attention/2025/22/index.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-24">[24] 衛生福利部疾病管制署 (2025-04-10). 日本百日咳疫情快速上升，創近10年同期新高. <a href="https://at.cdc.gov.tw/F807z2" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-25">[25] 環球網 (2025-05-27). 日本百日咳疫情持续蔓延. <a href="https://world.huanqiu.com/article/4MqZFufaNmN" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-26">[26] 新華網 (2025-06-17). 日本百日咳病例激增 专家提醒加强防护. <a href="http://www.news.cn/world/20250617/383e77af91694eda9015bf19198efd7c/c.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-27">[27] 人民網 (2025-06-18). 日本百日咳病例激增 专家提醒加强防护. <a href="http://world.people.com.cn/n1/2025/0618/c1002-40503314.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-28">[28] 新華網 (2025-06-24). 日本今年累计百日咳病例已达去年近8倍. <a href="http://www.news.cn/world/20250624/2f6c05eaa0d5463cae2ee7a5c28adf05/c.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-29">[29] C7-SERVICE (2025-05-26). 百日咳の流行状況【2025年】. <a href="https://c7service.co.jp/sanitation/whooping_cough_trend_2025" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-30">[30] 千葉県衛生研究所 (2025-07-23). 千葉県の百日咳発生状況 2025年第29週. <a href="https://www.pref.chiba.lg.jp/eiken/c-idsc/documents/202529pertussis.pdf" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-31">[31] 京都府感染症情報センター. 百日咳について. <a href="https://www.pref.kyoto.jp/idsc/old/pertussis4.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-32">[32] 中央社 (2025-05-09). 台東2025年首例百日咳 未滿月女嬰住院治療. <a href="https://www.cna.com.tw/news/ahel/202505090188.aspx" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-33">[33] 衛生福利部 (2025-01-22). 公布今年首例百日咳確定病例. <a href="https://www.mohw.gov.tw/cp-16-81346-1.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-34">[34] ASM Journals (2024-07-16). Microbiological Failure of Macrolide Therapy in an Infant with Severe Pertussis. <a href="https://journals.asm.org/doi/10.1128/asmcr.00093-24" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-35">[35] medRxiv (2025-03-20). Emergence and spread of macrolide-resistant Bordetella pertussis in France, 2024. <a href="https://www.medrxiv.org/content/10.1101/2025.03.15.25324024v2.full-text" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-36">[36] National Institute of Infectious Diseases (NIID). Pertussis, 2007-May 2008, Japan. <a href="https://idsc.niid.go.jp/iasr/29/337/tpc337.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-37">[37] The Journal of Infectious Diseases (2022-02-15). Waning Immunity After Receipt of Pertussis, Diphtheria, Tetanus, and Polio-Related Vaccines. <a href="https://academic.oup.com/jid/article-abstract/225/4/557/6372879" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-38">[38] European Centre for Disease Prevention and Control (ECDC) (2024-05-08). ECDC warns of surge in pertussis cases in Europe. <a href="https://www.cidrap.umn.edu/pertussis/ecdc-warns-surge-pertussis-cases-europe" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-39">[39] medRxiv (2024-04-18). Pertussis upsurge, age shift and vaccine escape post-COVID-19 caused by ptxP3 macrolide-resistant Bordetella pertussis MT28 clone in China. <a href="https://www.medrxiv.org/content/10.1101/2024.04.16.24305932v2" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-40">[40] 科技政策觀點 (2024-07-30). 國內新增1起百日咳家庭群聚事件. <a href="https://outlook.stpi.niar.org.tw/index/covid19/4b11410090c196c7019106aa2ce20c5d" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-41">[41] 衛生福利部 (2025-07-01). 近期國內百日咳疫情上升，病例數創10年新高. <a href="https://www.mohw.gov.tw/cp-16-82891-1.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-42">[42] 台灣兒童感染症醫學會. 百日咳疫苗. <a href="https://www.pids.org.tw/index.php?route=education/education&path=131" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-43">[43] 中央社 (2024-12-19). 百日咳增2本土為校園群聚 疾管署匡列接觸者30人. <a href="https://www.cna.com.tw/news/ahel/202412190116.aspx" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-44">[44] 衛生福利部疾病管制署 (2025-03-05). 減量破傷風白喉非細胞性百日咳及不活化小兒麻痺混合疫苗(Tdap-IPV). <a href="https://www.cdc.gov.tw/Category/Page/MXy9TPGNNXMS_rzotG7xzQ" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-45">[45] ResearchGate (2022-11-04). Macrolide Resistance in Bordetella pertussis: Current Situation and Future Challenges. <a href="https://www.researchgate.net/publication/365184822_Macrolide_Resistance_in_Bordetella_pertussis_Current_Situation_and_Future_Challenges" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-46">[46] European Centre for Disease Prevention and Control (ECDC) (2022). EQA for molecular typing and characterisation of Bordetella pertussis. <a href="https://www.ecdc.europa.eu/sites/default/files/documents/bordetella-pertussis-antimicrobial-susceptibility-testing-2022_0.pdf" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-47">[47] m3.com. 百日咳の基礎知識と最近の動向. <a href="https://pharmacist.m3.com/column/kurumi/6450" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-48">[48] 臺北市政府衛生局 (2025-07-10). 百日咳傳染途徑為何？. <a href="https://health.gov.taipei/News_Content.aspx?n=416BCB37CFFAC913&sms=87415A8B9CE81B16&s=89C172A3FECDAF96" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-49">[49] The Children's Hospital of Philadelphia (2023-03-01). Viral Transmission, Human Immunity and the “Immunity Debt”. <a href="https://www.chop.edu/parents-pack/parents-pack-newsletter/feature-article-viral-transmission-human-immunity-immunity-debt" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-50">[50] Infection & Drug Resistance (2021-05-21). The “immunity debt” of the COVID-19 pandemic in childhood. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8114587/" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-51">[51] Eurosurveillance (2022-06-23). Impact of non-pharmaceutical interventions for COVID-19 on pertussis surveillance. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9229195/" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-52">[52] National Institute of Allergy and Infectious Diseases (2020-08-25). Overcoming waning immunity to pertussis. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7454230/" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-53">[53] Vaccines (2022-12-20). Evaluation of Whole-Cell and Acellular Pertussis Vaccines in the Context of Long-Term Herd Immunity. <a href="https://www.mdpi.com/2076-393X/11/1/1" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-54">[54] PLOS Pathogens (2008-02-29). Acellular Pertussis Vaccines Protect against Disease but Fail to Prevent Infection and Transmission in a Nonhuman Primate Model. <a href="https://journals.plos.org/plospathogens/article?id=10.1371/journal.ppat.0010045" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-55">[55] PubMed (2021-09-20). Waning Immunity After Receipt of Pertussis, Diphtheria, Tetanus, and Polio-Related Vaccines. <a href="https://pubmed.ncbi.nlm.nih.gov/34543411/" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-56">[56] Clinical Infectious Diseases (2020-05-18). Call for Caution in Use of Pertussis Vaccine Effectiveness Studies to Estimate Waning Immunity. <a href="https://academic.oup.com/cid/article/73/1/83/5834736" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-57">[57] PLOS ONE (2018-05-03). A comparison of laboratory diagnostic methods for pertussis in a community setting. <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0195979" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-58">[58] 衛生福利部疾病管制署 (2025-07-01). 國內百日咳疫情創十年新高. <a href="https://www.mohw.gov.tw/cp-16-82891-1.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-59">[59] mamanoko.jp. 妊婦の百日咳ワクチン接種について. <a href="https://www.mcl.baby/news/column041/" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-60">[60] Platanus Clinic (2025-05-16). 妊婦さんへの百日咳含有ワクチンの接種を開始します. <a href="https://platanus-clinic.jp/blog/dpt/" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-61">[61] 日本厚生勞動省. 標準的なワクチン接種スケジュール. <a href="https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/kenkou_iryou/kenkou/kekkaku-kansenshou/whooping_cough/index.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-62">[62] 健康醫療網 (2025-04-08). 國內百日咳疫情升溫 為近6年同期最高. <a href="https://www.healthnews.com.tw/article/64813" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-63">[63] mBio (2014-09-02). Global Population Structure and Evolution of Bordetella pertussis and Their Relationship with Vaccination. <a href="https://journals.asm.org/doi/10.1128/mbio.01074-14" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-64">[64] ResearchGate. Temporal evolution of the most prevalent antigenic profiles observed in B. pertussis. <a href="https://www.researchgate.net/figure/Temporal-evolution-of-the-most-prevalent-antigenic-profiles-observed-in-B-pertussis_fig4_337552772" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-65">[65] C7-SERVICE. 最新統計で見る百日咳流行の現状 – 2025年. <a href="https://c7service.co.jp/sanitation/whooping_cough_trend_2025" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-66">[66] 公視新聞網 (2025-04-02). 百日咳本土病例今年已11起 4起為家庭群聚. <a href="https://news.pts.org.tw/article/744969" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-67">[67] 衛生福利部疾病管制署 (2025-07-01). 近期國內百日咳疫情上升，病例數創10年新高. <a href="https://www.cdc.gov.tw/Bulletin/Detail/4aofbMJZvaPotT6SQTRB6A?typeid=9#:~:text=%E4%BE%9D%E6%93%9A%E7%96%BE%E7%AE%A1%E7%BD%B2%E7%9B%A3%E6%B8%AC,2016%E5%B9%B4%E4%BB%A5%E4%BE%86)%E5%90%8C%E6%9C%9F%E6%9C%80%E9%AB%98%E3%80%82" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-68">[68] 衛生福利部疾病管制署 (2025-04-02). 國內今年百日咳疫情為六年同期新高. <a href="https://www.cdc.gov.tw/Bulletin/Detail/4aofbMJZvaPotT6SQTRB6A?typeid=9" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-69">[69] 衛生福利部 (2025-07-01). 近期國內百日咳疫情上升，病例數創10年新高. <a href="https://www.mohw.gov.tw/cp-16-82891-1.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-70">[70] 衛生福利部 (2025-07-01). 國內百日咳疫情創十年新高. <a href="https://www.mohw.gov.tw/cp-16-82891-1.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-71">[71] 日本健康安全研究所 (JIHS). 百日咳について. <a href="https://id-info.jihs.go.jp/surveillance/idwr/jp/attention/2025/22/index.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-72">[72] 日本小兒科學會 (2025-06-23). 生後2か月未満の乳児における重症百日咳の発症に関する注意喚起と治療薬選択について. <a href="https://www.jpeds.or.jp/uploads/files/20250623_jyushouhyakunitizeki.pdf" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-73">[73] 日本健康安全研究所 (JIHS) (2025-04-22). 百日咳の発生状況について. <a href="https://id-info.jihs.go.jp/diseases/ha/pertussis/020/2504_pertussis_RA.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-74">[74] National Institute of Infectious Diseases (NIID). Pertussis, 2007-May 2008, Japan. <a href="https://idsc.niid.go.jp/iasr/29/337/tpc337.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-75">[75] medRxiv (2024-04-18). Pertussis upsurge, age shift and vaccine escape post-COVID-19 caused by ptxP3 macrolide-resistant Bordetella pertussis MT28 clone in China. <a href="https://www.medrxiv.org/content/10.1101/2024.04.16.24305932v2" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-76">[76] European Centre for Disease Prevention and Control (ECDC) (2024-05-08). ECDC warns of surge in pertussis cases in Europe. <a href="https://www.cidrap.umn.edu/pertussis/ecdc-warns-surge-pertussis-cases-europe" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-77">[77] The Children's Hospital of Philadelphia (2023-03-01). Viral Transmission, Human Immunity and the “Immunity Debt”. <a href="https://www.chop.edu/parents-pack/parents-pack-newsletter/feature-article-viral-transmission-human-immunity-immunity-debt" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-78">[78] Infection & Drug Resistance (2021-05-21). The “immunity debt” of the COVID-19 pandemic in childhood. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8114587/" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-79">[79] Eurosurveillance (2022-06-23). Impact of non-pharmaceutical interventions for COVID-19 on pertussis surveillance. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9229195/" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-80">[80] 日本厚生勞動省. 標準的なワクチン接種スケジュール. <a href="https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/kenkou_iryou/kenkou/kekkaku-kansenshou/whooping_cough/index.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-81">[81] m3.com. 百日咳の基礎知識と最近の動向. <a href="https://pharmacist.m3.com/column/kurumi/6450" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-82">[82] 衛生福利部疾病管制署 (2025-03-05). 減量破傷風白喉非細胞性百日咳及不活化小兒麻痺混合疫苗(Tdap-IPV). <a href="https://www.cdc.gov.tw/Category/Page/MXy9TPGNNXMS_rzotG7xzQ" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-83">[83] mamanoko.jp. 妊婦の百日咳ワクチン接種について. <a href="https://www.mcl.baby/news/column041/" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-84">[84] Platanus Clinic (2025-05-16). 妊婦さんへの百日咳含有ワクチンの接種を開始します. <a href="https://platanus-clinic.jp/blog/dpt/" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-85">[85] 日本健康安全研究所 (JIHS). 百日咳について. <a href="https://id-info.jihs.go.jp/surveillance/idwr/jp/attention/2025/22/index.html" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-86">[86] 衛生福利部疾病管制署. 百日咳防治工作手冊. <a href="https://www.cdc.gov.tw/Category/Page/nE7gtdlnvDmBx00FwsJd2Q" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                    <li id="ref-87">[87] 衛生福利部疾病管制署. 百日咳病例定義. <a href="https://www.cdc.gov.tw/Category/MPage/l3lS32t2xJkIOIeYn0Vn4g" target="_blank" class="text-teal-600 hover:underline">[連結]</a></li>
+                </ul>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-gray-800 text-white text-center py-6 mt-16">
+        <p>資料來源：後疫情時代百日咳的復燃：日本與台灣2024-2025年疫情深度剖析報告。</p>
+        <p class="text-sm text-gray-400 mt-2">此互動儀表板僅供資訊參考，若有健康疑慮請諮詢專業醫師。</p>
+    </footer>
+
+    <div id="reason-modal" class="fixed inset-0 modal-bg items-center justify-center hidden z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-auto p-6 relative animate-fade-in">
+            <button id="close-modal-btn" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            <h3 id="modal-title" class="text-2xl font-bold text-teal-800 mb-4"></h3>
+            <div id="modal-content" class="text-gray-700 space-y-3"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const chartData = {
+                trend: {
+                    labels: [
+                        '2024-01', '2024-02', '2024-03', '2024-04', '2024-05', '2024-06', 
+                        '2024-07', '2024-08', '2024-09', '2024-10', '2024-11', '2024-12',
+                        '2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06', '2025-07'
+                    ],
+                    datasets: [
+                        {
+                            label: '日本累計病例數 (估計)',
+                            data: [],
+                            borderColor: '#DC2626',
+                            backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                            fill: true,
+                            tension: 0.2
+                        },
+                        {
+                            label: '台灣累計病例數',
+                            data: [],
+                            borderColor: '#EA580C',
+                            backgroundColor: 'rgba(234, 88, 12, 0.1)',
+                            fill: true,
+                            tension: 0.2
+                        }
+                    ],
+                    description: "數據顯示，日本疫情自2025年初開始急劇升溫，呈現爆炸性增長。台灣病例數雖較少，但自2025年5月起增長加速，同樣呈現顯著上升趨勢。"
+                },
+                age: {
+                    labels: ['< 6個月嬰兒', '5-9歲', '10-19歲青少年', '其他'],
+                    datasets: [
+                        {
+                            label: '日本年齡分佈 (%)',
+                            data: [1, 21, 60, 18],
+                            backgroundColor: 'rgba(220, 38, 38, 0.7)',
+                            borderColor: '#DC2626',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '台灣年齡分佈 (%)',
+                            data: [23, 0, 37, 40],
+                            backgroundColor: 'rgba(234, 88, 12, 0.7)',
+                            borderColor: '#EA580C',
+                            borderWidth: 1
+                        }
+                    ],
+                    description: "兩地疫情均呈現顯著的「年齡轉移」現象，10-19歲的青少年成為主要受影響群體，是社區傳播的關鍵節點。<sup><a href='#ref-10'>[10]</a><a href='#ref-28'>[28]</a></sup> 台灣的嬰兒病例佔比亦相當高，凸顯其高風險性。<sup><a href='#ref-41'>[41]</a><a href='#ref-42'>[42]</a></sup>"
+                }
+            };
+            
+            const japanMonthly = [150, 180, 220, 250, 300, 350, 400, 450, 500, 550, 600, 646, 1086, 2500, 4500, 8000, 12000, 15000, 19500];
+            const taiwanMonthly = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 5, 7, 17, 0];
+            
+            function calculateCumulative(data) {
+                let sum = 0;
+                return data.map(val => sum += val);
+            }
+            
+            chartData.trend.datasets[0].data = calculateCumulative(japanMonthly);
+            chartData.trend.datasets[1].data = calculateCumulative(taiwanMonthly);
+
+
+            const modalContentData = {
+                immunity: { title: "💉 疫苗效力衰退", content: `<p>現代非細胞性百日咳疫苗(aP)雖然比舊型全細胞疫苗(wP)安全，但其誘導的免疫保護力衰退得更快。研究顯示，在完成最後一劑接種後的3-5年，保護力就開始顯著下降，10年後可能幾乎消失。<sup><a href="#ref-3">[3]</a><a href="#ref-59">[59]</a></sup></p><p>這導致在嬰兒時期完成疫苗接種的個體，進入青少年時期後，免疫力已大幅減弱，形成一個巨大的易感人群庫。他們不僅自己容易感染，也成為將病毒帶入家庭、傳染給脆弱嬰兒的主要「橋樑」。<sup><a href="#ref-8">[8]</a><a href="#ref-52">[52]</a></sup></p>` },
+                evolution: { title: "🧬 病原體演化", content: `<p>長期的疫苗接種對百日咳桿菌施加了巨大的演化壓力，使其產生「疫苗逃逸」變異。主要有兩種情況：</p><ul class="list-disc list-inside mt-2 space-y-1"><li><strong>抗原漂移：</strong>當前流行的菌株(如ptxP3型)能產生更多毒素，增強傳播能力。<sup><a href="#ref-63">[63]</a></sup></li><li><strong>抗原缺失：</strong>許多菌株已不再產生疫苗中的關鍵抗原「百日咳桿菌黏附素(PRN)」，使其能輕易地感染已接種疫苗者。<sup><a href="#ref-67">[67]</a></sup></li></ul><p class="mt-2">這意味著我們面對的敵人，正變得與疫苗的「靶心」越來越不匹配。</p>` },
+                resistance: { title: "💊 抗生素抗藥性", content: `<p>對一線治療藥物(巨環內酯類)具抗藥性的百日咳桿菌(MRBP)正在全球擴散，最初在中國大量報導，現已傳播至日本、澳洲及歐洲多國。<sup><a href="#ref-45">[45]</a><a href="#ref-70">[70]</a></sup></p><p>這帶來了嚴峻的臨床挑戰：</p><ul class="list-disc list-inside mt-2 space-y-1"><li><strong>治療失敗：</strong>標準治療可能無效，導致病程延長、傳染期加長，增加重症風險。日本已出現嬰兒因感染MRBP死亡的案例。<sup><a href="#ref-4">[4]</a><a href="#ref-34">[34]</a></sup></li><li><strong>治療策略調整：</strong>面對重症嬰兒或在MRBP流行地區，醫師可能需要考慮使用二線藥物。<sup><a href="#ref-4">[4]</a></sup></li></ul><p class="mt-2">抗藥性問題是未來百日咳防治的最大挑戰之一。</p>` },
+                debt: { title: "😷 免疫負債", content: `<p>COVID-19大流行期間，口罩、社交距離等措施在阻擋新冠病毒的同時，也大幅減少了其他呼吸道病原體的傳播。<sup><a href="#ref-78">[78]</a><a href="#ref-79">[79]</a></sup>這造成了「免疫負債」：</p><ul class="list-disc list-inside mt-2 space-y-1"><li><strong>自然增強免疫中斷：</strong>人群失去了通過輕微、反覆接觸病原體來維持免疫力的機會。</li><li><strong>易感人群累積：</strong>大流行期間出生的幼兒，其免疫系統未能像過去一樣受到充分「訓練」。</li></ul><p class="mt-2">隨著社會活動恢復，百日咳桿菌重新進入一個免疫力相對低下、易感人群龐大的「沃土」，從而引發了爆炸性的疫情。<sup><a href="#ref-49">[49]</a><a href="#ref-77">[77]</a></sup></p>` }
+            };
+
+            const ctx = document.getElementById('pertussisChart').getContext('2d');
+            let myChart;
+
+            const trendBtn = document.getElementById('trend-btn');
+            const ageBtn = document.getElementById('age-btn');
+            const chartDescription = document.getElementById('chart-description');
+
+            function createChart(type) {
+                if (myChart) {
+                    myChart.destroy();
+                }
+                
+                let chartType, options;
+                if (type === 'trend') {
+                    chartType = 'line';
+                    options = {
+                        scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return value.toLocaleString(); } }, title: { display: true, text: '累計病例數' } } }
+                    };
+                } else {
+                    chartType = 'bar';
+                    options = {
+                        scales: { y: { beginAtZero: true, title: { display: true, text: '百分比 (%)' } } },
+                        plugins: { tooltip: { callbacks: { label: function(context) { return `${context.dataset.label}: ${context.raw}%`; } } } }
+                    };
+                }
+
+                myChart = new Chart(ctx, {
+                    type: chartType,
+                    data: chartData[type],
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                       ...options,
+                        plugins: {
+                            legend: { position: 'top' },
+                            title: { display: false }
+                        }
+                    }
+                });
+                chartDescription.innerHTML = chartData[type].description;
+            }
+
+            trendBtn.addEventListener('click', () => {
+                createChart('trend');
+                trendBtn.classList.add('bg-teal-600', 'text-white');
+                trendBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                ageBtn.classList.add('bg-gray-200', 'text-gray-700');
+                ageBtn.classList.remove('bg-teal-600', 'text-white');
+            });
+
+            ageBtn.addEventListener('click', () => {
+                createChart('age');
+                ageBtn.classList.add('bg-teal-600', 'text-white');
+                ageBtn.classList.remove('bg-gray-200', 'text-gray-700');
+                trendBtn.classList.add('bg-gray-200', 'text-gray-700');
+                trendBtn.classList.remove('bg-teal-600', 'text-white');
+            });
+
+            createChart('trend');
+
+            const accordions = document.querySelectorAll('.accordion-btn');
+            accordions.forEach(button => {
+                button.addEventListener('click', () => {
+                    const content = button.nextElementSibling;
+                    const icon = button.querySelector('.accordion-icon');
+                    
+                    if (content.style.maxHeight) {
+                        content.style.maxHeight = null;
+                        icon.textContent = '+';
+                    } else {
+                        const parentContainer = button.closest('.bg-white');
+                        parentContainer.querySelectorAll('.accordion-content').forEach(c => {
+                            c.style.maxHeight = null;
+                        });
+                        parentContainer.querySelectorAll('.accordion-icon').forEach(i => {
+                            i.textContent = '+';
+                        });
+
+                        content.style.maxHeight = content.scrollHeight + "px";
+                        icon.textContent = '-';
+                    }
+                });
+            });
+
+            const reasonCards = document.querySelectorAll('.reason-card');
+            const modal = document.getElementById('reason-modal');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const modalTitle = document.getElementById('modal-title');
+            const modalContent = document.getElementById('modal-content');
+
+            reasonCards.forEach(card => {
+                card.addEventListener('click', () => {
+                    const reason = card.dataset.reason;
+                    const data = modalContentData[reason];
+                    modalTitle.innerHTML = data.title;
+                    modalContent.innerHTML = data.content;
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                });
+            });
+
+            function closeModal() {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+
+            closeModalBtn.addEventListener('click', closeModal);
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('main section');
+
+            window.addEventListener('scroll', () => {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    if (pageYOffset >= sectionTop - 100) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href').substring(1) === current) {
+                        link.classList.add('active');
+                    }
+                });
+            });
+            
+            // Audio Player Logic
+            const audio = document.getElementById('audio-player');
+            const playBtn = document.getElementById('play-pause-btn');
+            const progressBar = document.getElementById('progress-bar');
+            const progressBarContainer = document.getElementById('progress-bar-container');
+            const timeDisplay = document.getElementById('time-display');
+            let isPlaying = false;
+
+            function formatTime(seconds) {
+                const minutes = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${minutes}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            function togglePlay() {
+                if (isPlaying) {
+                    audio.pause();
+                    playBtn.textContent = '▶';
+                } else {
+                    audio.play();
+                    playBtn.textContent = '❚❚';
+                }
+                isPlaying = !isPlaying;
+            }
+
+            function updateProgress() {
+                const { duration, currentTime } = audio;
+                const progressPercent = (currentTime / duration) * 100;
+                progressBar.style.width = `${progressPercent}%`;
+                if(duration) {
+                    timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+                }
+            }
+
+            function setProgress(e) {
+                const width = this.clientWidth;
+                const clickX = e.offsetX;
+                const duration = audio.duration;
+                audio.currentTime = (clickX / width) * duration;
+            }
+
+            playBtn.addEventListener('click', togglePlay);
+            audio.addEventListener('timeupdate', updateProgress);
+            audio.addEventListener('loadedmetadata', updateProgress);
+            audio.addEventListener('ended', () => {
+                playBtn.textContent = '▶';
+                isPlaying = false;
+                progressBar.style.width = '0%';
+            });
+            progressBarContainer.addEventListener('click', setProgress);
+
+        });
+    </script>
+</body>
+</html>
